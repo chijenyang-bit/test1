@@ -1,0 +1,633 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  LayoutDashboard, 
+  Search, 
+  Briefcase,
+  FolderKanban,
+  FileText,
+  Zap,
+  Menu,
+  Users,
+  Sparkles,
+  PlusCircle,
+  Circle,
+  CheckCircle,
+  Clock,
+  UserCheck,
+  StickyNote,
+  Send,
+  MessageSquarePlus,
+  User,
+  History,
+  Layout
+} from 'lucide-react';
+
+/**
+ * 資源負載圖表組件 (Canvas 繪製)
+ */
+const ResourceCanvas = ({ data }) => {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    
+    const updateCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+
+      const width = rect.width;
+      const height = rect.height;
+      const padding = 30;
+      const chartWidth = width - padding * 2;
+      const chartHeight = height - padding * 2;
+      
+      ctx.clearRect(0, 0, width, height);
+
+      ctx.strokeStyle = '#FDE6D2';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      for (let i = 0; i <= 3; i++) {
+        const y = padding + (chartHeight / 3) * i;
+        ctx.beginPath();
+        ctx.moveTo(padding, y);
+        ctx.lineTo(width - padding, y);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      const barGap = chartWidth / data.length;
+      const barWidth = barGap * 0.5;
+
+      data.forEach((val, i) => {
+        const x = padding + i * barGap + (barGap - barWidth) / 2;
+        const bHeight = (val / 100) * chartHeight;
+        const y = height - padding - bHeight;
+
+        const grad = ctx.createLinearGradient(0, y, 0, y + bHeight);
+        if (val > 80) {
+          grad.addColorStop(0, '#f97316');
+          grad.addColorStop(1, '#ea580c');
+        } else {
+          grad.addColorStop(0, '#fdba74');
+          grad.addColorStop(1, '#fb923c');
+        }
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        const radius = 6;
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + barWidth - radius, y);
+        ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
+        ctx.lineTo(x + barWidth, y + bHeight);
+        ctx.lineTo(x, y + bHeight);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.fill();
+
+        ctx.fillStyle = val > 80 ? '#ea580c' : '#94a3b8';
+        ctx.font = 'bold 10px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${val}%`, x + barWidth / 2, y - 10);
+      });
+    };
+
+    updateCanvas();
+    window.addEventListener('resize', updateCanvas);
+    return () => window.removeEventListener('resize', updateCanvas);
+  }, [data]);
+
+  return <canvas ref={canvasRef} className="w-full h-48 cursor-crosshair" />;
+};
+
+const ALL_MEMBERS = [
+  { id: 'A', name: 'Aaron', initial: 'A', color: 'bg-orange-500' },
+  { id: 'L', name: 'Luke', initial: 'L', color: 'bg-emerald-500' },
+  { id: 'N', name: 'Nicky', initial: 'N', color: 'bg-orange-400' },
+  { id: 'E', name: 'Eason', initial: 'E', color: 'bg-orange-500' },
+  { id: 'S', name: 'Sean', initial: 'S', color: 'bg-orange-600' },
+];
+
+const initialProjects = [
+  { 
+    id: 1, 
+    name: 'MP1100 次世代機型', 
+    client: '內部研發', 
+    status: '驗證中', 
+    progress: 75, 
+    teamIds: ['A', 'L', 'N'],
+    tasks: [
+      { id: 101, text: '完成 EVT 測試報告', done: false },
+      { id: 102, text: '校對硬體電路圖', done: true }
+    ],
+    dailyNotes: [
+      { id: 1, author: 'Aaron', text: '今日完成主機板與電源模組的整合測試。', date: '5/10 14:20' }
+    ]
+  },
+  { 
+    id: 2, 
+    name: 'MP1101 效能優化', 
+    client: '品牌客戶', 
+    status: '進行中', 
+    progress: 40, 
+    teamIds: ['A', 'E'],
+    tasks: [
+      { id: 201, text: '確認結案驗收清單', done: false }
+    ],
+    dailyNotes: []
+  },
+  { 
+    id: 3, 
+    name: 'MP1200 旗艦專案', 
+    client: '重點開發', 
+    status: '延遲', 
+    progress: 95, 
+    teamIds: ['S', 'L'],
+    tasks: [],
+    dailyNotes: []
+  }
+];
+
+const teamMembersInfo = [
+  { name: 'Aaron', role: '高級工程師', projects: 3, status: '工作中', statusColor: 'text-orange-500', initial: 'A', color: 'bg-orange-500' },
+  { name: 'Luke', role: '資深工程師', projects: 2, status: '空閒', statusColor: 'text-emerald-500', initial: 'L', color: 'bg-emerald-500' },
+  { name: 'Nicky', role: '主任工程師', projects: 4, status: '忙碌', statusColor: 'text-red-500', initial: 'N', color: 'bg-orange-400' },
+  { name: 'Eason', role: '專案副理', projects: 5, status: '會議中', statusColor: 'text-amber-500', initial: 'E', color: 'bg-orange-500' },
+  { name: 'Sean', role: 'PL (管理員)', projects: 2, status: '工作中', statusColor: 'text-orange-500', initial: 'S', color: 'bg-orange-600' },
+];
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('dashboard'); 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [projects, setProjects] = useState(initialProjects);
+  
+  // Daily Note 狀態
+  const [noteInput, setNoteInput] = useState("");
+  const [selectedAuthor, setSelectedAuthor] = useState("Sean");
+  const [targetProjectId, setTargetProjectId] = useState(initialProjects[0].id);
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case '進行中': return 'bg-orange-50 text-orange-600 border-orange-100';
+      case '驗證中': return 'bg-amber-50 text-amber-600 border-amber-100';
+      case '延遲': return 'bg-red-50 text-red-500 border-red-100';
+      case 'TD': return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+      default: return 'bg-gray-50 text-gray-700 border-gray-100';
+    }
+  };
+
+  const toggleTask = (projId, taskId) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id === projId) {
+        const newTasks = p.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
+        return { ...p, tasks: newTasks };
+      }
+      return p;
+    }));
+  };
+
+  // 核心功能：更新進度並同步到全域狀態
+  const handleProgressChange = (projId, newValue) => {
+    setProjects(prev => prev.map(p => 
+      p.id === projId ? { ...p, progress: parseInt(newValue) } : p
+    ));
+  };
+
+  const addDailyNote = () => {
+    if (!noteInput.trim()) return;
+    setProjects(prev => prev.map(p => {
+      if (p.id === targetProjectId) {
+        const newNote = {
+          id: Date.now(),
+          author: selectedAuthor,
+          text: noteInput,
+          date: new Date().toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
+        };
+        return { ...p, dailyNotes: [newNote, ...(p.dailyNotes || [])] };
+      }
+      return p;
+    }));
+    setNoteInput("");
+  };
+
+  // 計算平均進度
+  const avgProgress = Math.round(projects.reduce((acc, p) => acc + p.progress, 0) / projects.length);
+
+  return (
+    <div className="flex h-screen bg-[#FFFBF7] font-sans text-slate-900 overflow-hidden relative">
+      
+      {/* 側邊欄 */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-orange-50/50 transition-transform lg:static lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex flex-col h-full p-8">
+          <div className="flex items-center gap-3 mb-12">
+            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-100">
+               <div className="grid grid-cols-2 gap-1">
+                <div className="w-2.5 h-2.5 bg-white rounded-sm opacity-60"></div>
+                <div className="w-2.5 h-2.5 bg-white rounded-sm"></div>
+                <div className="w-2.5 h-2.5 bg-white rounded-sm"></div>
+                <div className="w-2.5 h-2.5 bg-white rounded-sm opacity-60"></div>
+              </div>
+            </div>
+            <span className="text-2xl font-bold tracking-tight text-slate-800">ProDash</span>
+          </div>
+
+          <nav className="space-y-1.5 mb-10">
+            <p className="px-4 text-[11px] font-bold text-slate-300 uppercase tracking-widest mb-4">選單導覽</p>
+            
+            <button 
+              onClick={() => setActiveTab('dashboard')} 
+              className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold text-sm border-0 cursor-pointer text-left transition-all ${activeTab === 'dashboard' ? 'bg-gradient-to-r from-orange-50 to-transparent text-orange-600' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <LayoutDashboard className={`w-5 h-5 ${activeTab === 'dashboard' ? 'text-orange-600' : 'text-slate-400'}`} /> 儀表板總覽
+            </button>
+            
+            <button 
+              onClick={() => setActiveTab('projects')} 
+              className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold text-sm border-0 cursor-pointer text-left transition-all ${activeTab === 'projects' ? 'bg-gradient-to-r from-orange-50 to-transparent text-orange-600' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <FolderKanban className={`w-5 h-5 ${activeTab === 'projects' ? 'text-orange-600' : 'text-slate-400'}`} /> 專案導覽
+            </button>
+
+            <button 
+              onClick={() => setActiveTab('team')} 
+              className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl font-bold text-sm border-0 cursor-pointer text-left transition-all ${activeTab === 'team' ? 'bg-gradient-to-r from-orange-50 to-transparent text-orange-600' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <Users className={`w-5 h-5 ${activeTab === 'team' ? 'text-orange-600' : 'text-slate-400'}`} /> 團隊管理
+            </button>
+          </nav>
+
+          <div className="mt-auto">
+            <div className="bg-[#121926] p-5 rounded-2xl flex flex-col gap-1 shadow-xl shadow-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">系統連線中</span>
+              </div>
+              <span className="text-[9px] font-bold text-slate-500 ml-5.5">v2.9.5 State Synced</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* 主內容區 */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="h-20 flex items-center justify-between px-10 shrink-0 bg-[#FFFBF7]/80 backdrop-blur-md z-20 border-b border-orange-50/30">
+          <div className="flex items-center gap-6">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2 hover:bg-slate-100 rounded-lg border-0 bg-transparent cursor-pointer"><Menu /></button>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+              <input type="text" placeholder="搜尋專案..." className="pl-12 pr-4 py-2.5 bg-white border border-orange-50 rounded-2xl text-sm w-64 md:w-80 outline-none shadow-sm focus:ring-2 ring-orange-100 transition-all" />
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm font-black text-slate-800 tracking-tight">Sean Huang</p>
+              <p className="text-[10px] font-black text-orange-500 uppercase tracking-tighter">PL (管理員)</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-orange-100 border-2 border-white flex items-center justify-center font-black text-orange-600 shadow-sm">S</div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-10 lg:p-14 pt-2">
+          <div className="max-w-7xl mx-auto space-y-14">
+            
+            {/* 儀表板總覽 - 自動更新進度數據 */}
+            {activeTab === 'dashboard' && (
+              <>
+                <div className="flex flex-col gap-1 mb-8">
+                  <h1 className="text-4xl font-black italic tracking-tighter text-slate-800 uppercase">儀表板總覽</h1>
+                  <p className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.2em]">Global Project Health</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 slide-up">
+                  {[
+                    { label: '總專案數', value: projects.length.toString(), icon: Briefcase, color: 'bg-orange-50 text-orange-500' },
+                    { label: '平均進度', value: `${avgProgress}%`, icon: Clock, color: 'bg-amber-50 text-amber-500' },
+                    { label: '團隊人數', value: '5', icon: Users, color: 'bg-sky-50 text-sky-500' },
+                    { label: '在線成員', value: '4', icon: UserCheck, color: 'bg-emerald-50 text-emerald-500' },
+                  ].map((card, idx) => (
+                    <div key={idx} className="bg-white rounded-[2rem] p-8 border border-orange-50/50 shadow-sm flex items-center gap-8 hover:shadow-lg transition-all transform hover:-translate-y-1">
+                      <div className={`w-16 h-16 rounded-2xl ${card.color} flex items-center justify-center shadow-inner`}>
+                        <card.icon className="w-7 h-7" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider mb-1">{card.label}</span>
+                        <span className="text-4xl font-black text-slate-800 leading-none">{card.value}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-10 slide-up">
+                  <div className="xl:col-span-2 space-y-8">
+                    <div className="bg-white rounded-[2.5rem] border border-orange-50 shadow-sm overflow-hidden">
+                      <div className="p-10 border-b border-slate-50 flex items-center justify-between">
+                        <h3 className="font-black italic flex items-center gap-3 text-xl tracking-tight uppercase">
+                          <Zap className="w-5 h-5 text-orange-500 fill-current" /> 即時專案狀態
+                        </h3>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">實時同步數據</span>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead className="bg-slate-50/30 text-[10px] font-black text-slate-300 uppercase">
+                            <tr>
+                              <th className="px-10 py-6">專案名稱</th>
+                              <th className="px-6 py-6 text-center">成員</th>
+                              <th className="px-10 py-6">進度</th>
+                              <th className="px-10 py-6 text-center">狀態</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {projects.map(p => (
+                              <tr key={p.id} className="hover:bg-orange-50/10 transition-colors group">
+                                <td className="px-10 py-8">
+                                  <p className="text-lg font-black text-slate-800 group-hover:text-orange-600 transition-colors mb-0.5">{p.name}</p>
+                                  <p className="text-[10px] text-slate-300 font-black uppercase tracking-tight">{p.client}</p>
+                                </td>
+                                <td className="px-6 py-8">
+                                  <div className="flex -space-x-2 justify-center">
+                                    {p.teamIds.map((id, i) => {
+                                      const m = ALL_MEMBERS.find(member => member.id === id);
+                                      return (
+                                        <div key={i} className={`w-8 h-8 rounded-lg border-2 border-white flex items-center justify-center text-[9px] font-black text-white ${m?.color || 'bg-slate-400'} shadow-sm`}>
+                                          {m?.initial}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                                <td className="px-10 py-8">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className="bg-orange-500 h-full rounded-full transition-all duration-500" style={{width: `${p.progress}%`}}></div>
+                                    </div>
+                                    <span className="text-[11px] font-black text-slate-600">{p.progress}%</span>
+                                  </div>
+                                </td>
+                                <td className="px-10 py-8 text-center">
+                                  <span className={`px-5 py-2 rounded-full text-[10px] font-black border tracking-wider shadow-sm ${getStatusStyle(p.status)}`}>{p.status}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-[2.5rem] border border-orange-50 shadow-sm p-10">
+                     <h3 className="text-xl font-black italic mb-2 tracking-tight uppercase flex items-center gap-2">
+                       <Sparkles className="w-5 h-5 text-orange-400" /> 資源負載分析
+                     </h3>
+                     <p className="text-[11px] font-bold text-slate-300 mb-8 uppercase tracking-widest">Team Performance</p>
+                     <ResourceCanvas data={[45, 88, 62, 95, 30]} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* 專案導覽 - 提供可修改的進度條 */}
+            {activeTab === 'projects' && (
+              <div className="space-y-20">
+                <div className="space-y-8">
+                  <div className="flex flex-col gap-1">
+                    <h2 className="text-3xl font-black italic tracking-tighter text-slate-800 uppercase">Project Navigator</h2>
+                    <p className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.2em]">拖曳滑桿即可即時更新專案進度</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                    {projects.map(p => (
+                      <div key={p.id} className="bg-white rounded-[2.8rem] border border-orange-50 shadow-sm flex flex-col transition-all hover:shadow-2xl group overflow-hidden slide-up">
+                        <div className="p-10 pb-8 space-y-8">
+                          <div className="flex justify-between items-start">
+                            <span className={`px-5 py-1.5 rounded-full text-[10px] font-black border tracking-wider shadow-sm ${getStatusStyle(p.status)}`}>{p.status}</span>
+                          </div>
+                          
+                          <div>
+                            <h3 className="text-2xl font-black text-slate-800 mb-1.5 group-hover:text-orange-600 transition-colors uppercase tracking-tight leading-tight">{p.name}</h3>
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{p.client}</p>
+                          </div>
+
+                          <div className="pt-4">
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">目前進度</span>
+                              <span className="text-[13px] font-black text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md">{p.progress}%</span>
+                            </div>
+                            {/* 改進的可交互進度條 */}
+                            <div className="relative flex items-center">
+                              <input 
+                                type="range" 
+                                min="0" 
+                                max="100" 
+                                value={p.progress} 
+                                onChange={(e) => handleProgressChange(p.id, e.target.value)}
+                                className="custom-range w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-orange-500 z-10"
+                                style={{ background: `linear-gradient(to right, #f97316 ${p.progress}%, #f1f5f9 ${p.progress}%)` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 px-10 py-8 bg-[#FFFBF7]/50 space-y-6 border-y border-orange-50/50">
+                          <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                            <Circle className="w-3 h-3 text-orange-500 fill-orange-500" /> 優先任務
+                          </h4>
+                          <div className="space-y-3">
+                            {p.tasks.map((task) => (
+                              <div key={task.id} onClick={() => toggleTask(p.id, task.id)} className="bg-white border border-orange-50/50 p-4 rounded-xl flex items-center gap-4 shadow-sm cursor-pointer hover:scale-[1.02] transition-transform">
+                                {task.done ? <CheckCircle className="w-5 h-5 text-orange-500" /> : <Circle className="w-5 h-5 text-slate-200" />}
+                                <span className={`text-xs font-bold ${task.done ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{task.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="p-10 flex justify-between items-center bg-white">
+                          <div className="flex -space-x-2">
+                              {p.teamIds.map((id) => {
+                                const m = ALL_MEMBERS.find(member => member.id === id);
+                                return (
+                                  <div key={id} className={`w-9 h-9 rounded-xl border-2 border-white flex items-center justify-center text-[10px] font-black text-white ${m?.color || 'bg-slate-400'} shadow-sm`}>
+                                    {m?.initial}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                             <History className="w-3 h-3" /> {p.dailyNotes.length} 則紀錄
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 獨立日誌中心 (保持功能) */}
+                <div className="bg-white rounded-[2.5rem] border border-orange-100 shadow-xl overflow-hidden slide-up">
+                  <div className="bg-gradient-to-br from-[#121926] to-[#1e293b] p-8 lg:p-10 text-white flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                      <h2 className="text-3xl font-black italic tracking-tight uppercase flex items-center gap-3">
+                        <StickyNote className="w-7 h-7 text-orange-500" /> 團隊日誌中心
+                      </h2>
+                      <p className="text-[11px] font-bold opacity-60 uppercase tracking-[0.2em] mt-2">Member Daily Note Station</p>
+                    </div>
+                  </div>
+
+                  <div className="p-8 lg:p-10 grid grid-cols-1 lg:grid-cols-12 gap-10">
+                    <div className="lg:col-span-7 space-y-8">
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                              <Briefcase className="w-3 h-3 text-orange-400" /> 目標專案
+                            </label>
+                            <select 
+                              value={targetProjectId}
+                              onChange={(e) => setTargetProjectId(parseInt(e.target.value))}
+                              className="w-full bg-slate-50 border-0 rounded-2xl p-4 text-sm font-bold outline-none ring-2 ring-transparent focus:ring-orange-100 transition-all appearance-none cursor-pointer"
+                            >
+                              {projects.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-3">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                              <User className="w-3 h-3 text-orange-400" /> 回報成員
+                            </label>
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                              {ALL_MEMBERS.map(m => (
+                                <button 
+                                  key={m.id}
+                                  onClick={() => setSelectedAuthor(m.name)}
+                                  className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all border-2 whitespace-nowrap ${selectedAuthor === m.name ? 'bg-orange-500 text-white border-orange-500 shadow-lg shadow-orange-100' : 'bg-slate-50 text-slate-400 border-transparent hover:border-orange-100'}`}
+                                >
+                                  {m.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                       </div>
+
+                       <div className="space-y-3">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <MessageSquarePlus className="w-3 h-3 text-orange-400" /> 進度細節描述
+                          </label>
+                          <div className="relative">
+                            <textarea 
+                              value={noteInput}
+                              onChange={(e) => setNoteInput(e.target.value)}
+                              placeholder="請輸入今日的工作重點..."
+                              className="w-full h-32 bg-slate-50 border-0 rounded-3xl p-6 text-sm font-bold outline-none ring-2 ring-transparent focus:ring-orange-100 transition-all resize-none shadow-inner"
+                            />
+                            <button 
+                              onClick={addDailyNote}
+                              className="absolute bottom-4 right-4 bg-orange-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-100 hover:scale-105 active:scale-95 transition-all cursor-pointer border-0"
+                            >
+                              <Send className="w-5 h-5" />
+                            </button>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="lg:col-span-5 bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100 overflow-hidden flex flex-col">
+                      <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-6">
+                        <History className="w-4 h-4 text-orange-500" /> 最近日誌動態
+                      </h4>
+                      <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scroll">
+                        {projects.flatMap(p => p.dailyNotes.map(n => ({...n, projName: p.name}))).sort((a,b) => b.id - a.id).slice(0, 6).map(note => (
+                          <div key={note.id} className="bg-white p-5 rounded-2xl border border-orange-50/50 shadow-sm animate-in">
+                            <div className="flex justify-between items-center mb-2">
+                               <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center font-black text-[9px] uppercase">{note.author[0]}</div>
+                                  <span className="text-xs font-black text-slate-800">{note.author}</span>
+                               </div>
+                               <span className="text-[9px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-md">{note.projName}</span>
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-500 italic leading-relaxed">「{note.text}」</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 團隊管理 - 內容保持不變 */}
+            {activeTab === 'team' && (
+              <div className="space-y-10">
+                <div className="flex flex-col gap-1">
+                  <h1 className="text-4xl font-black italic tracking-tighter text-slate-800 uppercase">團隊成員管理</h1>
+                  <p className="text-[11px] font-bold text-slate-300 uppercase tracking-[0.2em]">Team Performance & Availability</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10 slide-up">
+                  {teamMembersInfo.map((m, idx) => (
+                    <div key={idx} className="bg-white rounded-[2.5rem] p-10 border border-orange-50 shadow-sm flex flex-col items-center text-center hover:shadow-xl transition-all group">
+                      <div className={`w-20 h-20 ${m.color} rounded-[2rem] flex items-center justify-center text-3xl font-black text-white mb-6 shadow-xl shadow-orange-100 group-hover:scale-110 transition-transform`}>
+                        {m.initial}
+                      </div>
+                      <h3 className="text-xl font-black text-slate-800 mb-1">{m.name}</h3>
+                      <p className="text-[11px] font-bold text-orange-400 uppercase tracking-widest mb-8">{m.role}</p>
+                      <div className="w-full bg-slate-50/50 rounded-[1.8rem] p-6 flex justify-around border border-slate-50">
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">專案數</span>
+                          <span className="text-2xl font-black text-slate-700">{m.projects}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">狀態</span>
+                          <span className={`text-xs font-black ${m.statusColor}`}>{m.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      </main>
+
+      <style>{`
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .animate-in { animation: fade-in 0.3s ease-out both; }
+        .slide-up { animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #fed7aa; border-radius: 10px; }
+        
+        /* 自定義滑桿樣式 */
+        .custom-range {
+          -webkit-appearance: none;
+          background: transparent;
+        }
+        .custom-range::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          height: 20px;
+          width: 20px;
+          border-radius: 50%;
+          background: #ffffff;
+          border: 4px solid #f97316;
+          cursor: pointer;
+          margin-top: -6px;
+          box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3);
+          transition: transform 0.1s ease;
+        }
+        .custom-range::-webkit-slider-thumb:hover {
+          transform: scale(1.15);
+        }
+        .custom-range::-webkit-slider-runnable-track {
+          height: 8px;
+          border-radius: 9999px;
+        }
+      `}</style>
+    </div>
+  );
+}
